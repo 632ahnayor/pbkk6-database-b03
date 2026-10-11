@@ -181,6 +181,58 @@
             color: white;
         }
 
+        .nav-menu {
+            position: relative;
+            color: white;
+        }
+
+        .nav-menu summary {
+            cursor: pointer;
+            list-style: none;
+            color: white;
+            font-size: small;
+        }
+
+        .nav-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .nav-menu summary::after {
+            margin-left: 0.4rem;
+            content: "▾";
+        }
+
+        .nav-menu summary:focus-visible {
+            outline: 2px solid white;
+            outline-offset: 4px;
+        }
+
+        .nav-menu-options {
+            position: absolute;
+            z-index: 11;
+            top: calc(100% + 0.5rem);
+            left: 0;
+            min-width: 12rem;
+            padding: 0.35rem;
+            border: 1px solid #e0e7ef;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 8px 24px rgb(2 56 128 / 18%);
+        }
+
+        .nav-menu-options a {
+            display: block;
+            padding: 0.6rem 0.75rem;
+            border-radius: 5px;
+            color: #023880;
+            text-decoration: none;
+        }
+
+        .nav-menu-options a:hover {
+            background: #eff6ff;
+        }
+
+        /*mobile style */
         @media (max-width: 640px) {
             .navbar {
                 grid-template-columns: 1fr auto;
@@ -215,6 +267,26 @@
             .navbar-links a {
                 padding: 0.75rem 0;
             }
+
+            /*mobile style for dropdown menu*/
+            .navbar-links .nav-menu > summary {
+                padding: 0.75rem 0;
+            }
+
+            .navbar-links .nav-menu-options {
+                position: static;
+                min-width: 0;
+                margin-left: 0.75rem;
+                padding: 0;
+                border: 0;
+                background: transparent;
+                box-shadow: none;
+            }
+
+            .navbar-links .nav-menu-options a {
+                padding: 0.55rem 0.75rem;
+                color: white;
+            }
         }
     </style>
 </head>
@@ -237,15 +309,37 @@
         </div>
 
         <div class="navbar-links" id="navbar-links">
-            <a href="{{ route('about') }}">About</a>
-            <a href="{{ route('mahasiswa.show', ['nrp' => '5025241115']) }}">Mahasiswa</a>
-            <a href="{{ route('project') }}">Project Idea</a>
-            <a href="{{ route('kalkulator', ['angka1' => 6, 'angka2' => 7, 'operasi' => 'modulo']) }}">Kalkulator</a>
-            <a href="{{ route('agent', ['tema' => 'gmail']) }}">Agent: Gmail</a>
-            <a href="{{ route('hitung-ipk.result', ['ip1' => 3.34, 'ip2' => 4]) }}">Hitung IPK</a>
-            <a href="{{ route('profilMahasiswa') }}">Profil-Mahasiswa</a>
-            <a href="{{ route('ideAgent') }}">Ide-Agent</a>
-            <a href="{{ route('form.get') }}">Form Masukan</a>
+            <details class="nav-menu">
+                <summary>Minggu 1</summary>
+                <div class="nav-menu-options">
+                    <a href="{{ route('about') }}">About</a>
+                    <a href="{{ route('project') }}">Project Idea</a>
+                    <a href="{{ route('kalkulator', ['angka1' => 6, 'angka2' => 7, 'operasi' => 'modulo']) }}">Kalkulator</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Minggu 2</summary>
+                <div class="nav-menu-options">
+                    <a href="{{ route('mahasiswa.show', ['nrp' => '5025241115']) }}">Mahasiswa</a>
+                    <a href="{{ route('agent', ['tema' => 'gmail']) }}">Agent: Gmail</a>
+                    <a href="{{ route('hitung-ipk.result', ['ip1' => 3.34, 'ip2' => 4]) }}">Hitung IPK</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Minggu 4</summary>
+                <div class="nav-menu-options">
+                    <a href="{{ route('profilMahasiswa') }}">Profil-Mahasiswa</a>
+                    <a href="{{ route('ideAgent') }}">Ide-Agent</a>
+                    <a href="{{ route('form.get') }}">Form Masukan</a>
+                    <a href="{{ route('local-login') }}">Local Login Demo</a>
+                </div>
+            </details>
+            <details class="nav-menu">
+                <summary>Minggu 5</summary>
+                <div class="nav-menu-options">
+                    
+                </div>
+            </details>
             
         </div>
 

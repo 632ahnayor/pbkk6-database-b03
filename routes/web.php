@@ -7,6 +7,9 @@ use App\Http\Controllers\PageController;
 Route::get('/', [PageController::class, 'index'])
     ->name('home');
 
+Route::get('/local-login', [PageController::class, 'localLogin'])
+    ->name('local-login');
+
 Route::prefix('dashboard')->group(function() {
     Route::get('/about', [PageController::class, 'about'])
         ->name('about');

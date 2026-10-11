@@ -22,6 +22,10 @@ class PageController extends Controller
         ]);
     }
 
+    public function localLogin() {
+        return view('local-login', ['pageTitle' => 'Local Login Demo']);
+    }
+
     public function about() {
         return view('about', ['pageTitle' => 'About']);
     }
