@@ -223,14 +223,39 @@ npm run build
 
 > Jangan gunakan password demo `password` di server publik. Pastikan `.env` tidak dimasukkan ke Git.
 
-Tantangan opsional—throttle kustom tiga proposal per menit dan bypass auto-login khusus environment local—belum diimplementasikan. Local Login Demo query-parameter bukan bypass autentikasi.
+### 11. Tantangan ekstra: throttle proposal dan quick login lokal
 
-### 11. Pengujian
+Kedua tantangan opsional Minggu 5 sudah diterapkan.
 
-Pengujian fitur tugas berada di [AcademicPortalTest.php, baris 1](./tests/Feature/AcademicPortalTest.php#L1). Pengujian mencakup role default saat register, data seeder dan login, proteksi route admin, kepemilikan proposal, Gate untuk nilai, serta pembedaan Local Login Demo dari autentikasi Breeze.
+#### Maksimal tiga pengiriman proposal per menit
+
+Named limiter `proposal-submissions` membatasi mahasiswa yang sudah login menjadi tiga request POST ke route `proposals.store` per menit. Kuota dipisahkan berdasarkan ID pengguna; request keempat dalam window tersebut menerima HTTP 429 dan tidak membuat proposal baru. Request yang gagal validasi juga dihitung karena limiter melindungi route sebelum controller memproses form.
+
+- [AppServiceProvider.php, baris 29](./app/Providers/AppServiceProvider.php#L29): definisi named rate limiter dengan kuota per ID mahasiswa.
+- [routes/web.php, baris 61](./routes/web.php#L61): middleware `throttle:proposal-submissions` pada route submit proposal.
+- [WeeklyChallengesTest.php, baris 10](./tests/Feature/WeeklyChallengesTest.php#L10): uji batas tiga submission.
+- [WeeklyChallengesTest.php, baris 25](./tests/Feature/WeeklyChallengesTest.php#L25): uji kuota terpisah antar mahasiswa.
+
+#### Quick login untuk akun demo (local saja)
+
+Pada halaman login Breeze, environment `local` menampilkan empat tombol: Andi dan Budi (mahasiswa), Asdos, dan Dosen. Tombol mengirim form POST ber-CSRF ke route `/login/as/{account}`; handler hanya mengenali slug tetap tersebut, mencari email demo terkait, melakukan login melalui guard `web`, lalu meregenerasi session sebelum mengarahkan pengguna ke dashboard.
+
+- [login.blade.php, baris 48](./resources/views/auth/login.blade.php#L48): empat tombol quick-login hanya ditampilkan pada environment local.
+- [web.php, baris 53](./routes/web.php#L53): route quick-login dengan middleware `guest`.
+- [DemoLoginController.php, baris 15](./app/Http/Controllers/Auth/DemoLoginController.php#L15): guard environment; allowlist akun dan session regeneration berlanjut pada method yang sama.
+- [WeeklyChallengesTest.php, baris 42](./tests/Feature/WeeklyChallengesTest.php#L42): visibilitas tombol berbeda antara `local` dan `testing`.
+- [WeeklyChallengesTest.php, baris 57](./tests/Feature/WeeklyChallengesTest.php#L57): autentikasi setiap akun demo dan verifikasi rotasi session.
+- [WeeklyChallengesTest.php, baris 79](./tests/Feature/WeeklyChallengesTest.php#L79): route menolak environment non-local dan slug tidak dikenal.
+
+Pastikan akun sudah tersedia dengan `php artisan migrate --seed`. Route quick-login mengembalikan 404 di luar environment `local`; tombolnya juga tidak dirender. Jangan jalankan aplikasi dengan `APP_ENV=local` pada server yang dapat diakses publik, karena mode local memang mengaktifkan jalur login tanpa password untuk akun demo. Quick login ini berbeda dari **Local Login Demo Minggu 4**, yang hanya mengubah query parameter dan tidak mengautentikasi.
+
+### 12. Pengujian
+
+Pengujian portal utama berada di [AcademicPortalTest.php, baris 1](./tests/Feature/AcademicPortalTest.php#L1). Uji khusus tantangan ada di [WeeklyChallengesTest.php, baris 1](./tests/Feature/WeeklyChallengesTest.php#L1), meliputi batas submission per mahasiswa, isolasi kuota, quick-login akun demo, rotasi session, dan pembatasan environment.
 
 ```bash
 php artisan test
+php artisan test tests/Feature/WeeklyChallengesTest.php
 npm run build
 ```
 

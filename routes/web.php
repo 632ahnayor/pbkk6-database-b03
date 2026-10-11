@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;
+use App\Http\Controllers\Auth\DemoLoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GradeController;
 use App\Http\Controllers\PageController;
@@ -49,10 +50,15 @@ Route::get('/dashboard', DashboardController::class)
     ->middleware('auth')
     ->name('dashboard');
 
+Route::post('/login/as/{account}', DemoLoginController::class)
+    ->middleware('guest')
+    ->name('login.demo');
+
 Route::middleware(['auth', 'cek.peran:mahasiswa'])->group(function () {
     Route::get('/proposals/create', [ProposalController::class, 'create'])
         ->name('proposals.create');
     Route::post('/proposals', [ProposalController::class, 'store'])
+        ->middleware('throttle:proposal-submissions')
         ->name('proposals.store');
     Route::get('/proposals/{proposal}/edit', [ProposalController::class, 'edit'])
         ->name('proposals.edit');
