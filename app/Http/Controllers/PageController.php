@@ -8,7 +8,7 @@ class PageController extends Controller
 {
     public function index(Request $request) {
         $requestedUser = $request->query('user');
-        $user = match (is_string($requestedUser) ? strtolower($requestedUser) : null) {
+        $user = $request->user()?->name ?? match (is_string($requestedUser) ? strtolower($requestedUser) : null) {
             'andi' => 'Andi',
             'budi' => 'Budi',
             default => 'Guest',

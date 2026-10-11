@@ -1,8 +1,13 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GradeController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProposalController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PageController::class, 'index'])
     ->name('home');
@@ -10,7 +15,7 @@ Route::get('/', [PageController::class, 'index'])
 Route::get('/local-login', [PageController::class, 'localLogin'])
     ->name('local-login');
 
-Route::prefix('dashboard')->group(function() {
+Route::prefix('dashboard')->group(function () {
     Route::get('/about', [PageController::class, 'about'])
         ->name('about');
     Route::get('/project-idea', [PageController::class, 'project'])
@@ -40,6 +45,37 @@ Route::get('/form', [PageController::class, 'form'])
 Route::post('/form', [PageController::class, 'formPost'])
     ->name('form.post');
 
+Route::get('/dashboard', DashboardController::class)
+    ->middleware('auth')
+    ->name('dashboard');
+
+Route::middleware(['auth', 'cek.peran:mahasiswa'])->group(function () {
+    Route::get('/proposals/create', [ProposalController::class, 'create'])
+        ->name('proposals.create');
+    Route::post('/proposals', [ProposalController::class, 'store'])
+        ->name('proposals.store');
+    Route::get('/proposals/{proposal}/edit', [ProposalController::class, 'edit'])
+        ->name('proposals.edit');
+    Route::patch('/proposals/{proposal}', [ProposalController::class, 'update'])
+        ->name('proposals.update');
+});
+
+Route::prefix('admin')
+    ->name('admin.')
+    ->middleware(['auth', 'cek.peran:dosen,asdos'])
+    ->group(function () {
+        Route::get('/', AdminController::class)->name('index');
+        Route::get('/grades', [GradeController::class, 'index'])->name('grades.index');
+        Route::patch('/grades/{proposal}', [GradeController::class, 'update'])->name('grades.update');
+    });
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/auth.php';
 
 Route::fallback(function () {
     return response()->view('fallback', ['pageTitle' => 'Not Found'], 404);

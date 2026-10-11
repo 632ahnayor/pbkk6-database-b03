@@ -3,6 +3,237 @@
 Nama: Royan Habibi Alfatih<br>
 NRP: 5025241115
 
+
+## Tugas 5: Secure Academic Portal
+
+Tugas Minggu 5 mengembangkan sandbox menjadi portal akademik dengan autentikasi Breeze dan otorisasi berdasarkan role. Fitur wajib yang diterapkan mencakup register/login, migration role, middleware khusus untuk route admin, Gate pengelolaan nilai, Policy untuk kepemilikan proposal, serta proteksi aksi pada Blade. Fitur pendukungnya meliputi dashboard, profil akun, peninjauan proposal, dan pengisian nilai.
+
+> Contoh kode berikut berasal dari implementasi proyek. Judul setiap bagian menautkan file sumber beserta nomor baris agar pembaca dapat melihat kode lengkap dan konteksnya.
+
+### 1. Breeze: registrasi, login, dan logout
+
+Breeze Blade menyediakan halaman dan route register, login, serta logout. Route autentikasi dipisahkan dari route aplikasi dan dimuat dari `routes/web.php`.
+
+- [routes/auth.php, baris 14](./routes/auth.php#L14): register/login hanya tersedia untuk guest.
+- [RegisteredUserController.php, baris 31](./app/Http/Controllers/Auth/RegisteredUserController.php#L31): validasi dan pembuatan akun.
+- [AuthenticatedSessionController.php, baris 25](./app/Http/Controllers/Auth/AuthenticatedSessionController.php#L25): login dan regenerasi session.
+- [AuthenticatedSessionController.php, baris 37](./app/Http/Controllers/Auth/AuthenticatedSessionController.php#L37): logout, invalidasi session, regenerasi token CSRF.
+- [login.blade.php, baris 5](./resources/views/auth/login.blade.php#L5): form login POST dengan CSRF.
+- [routes/auth.php, baris 25](./routes/auth.php#L25): endpoint permintaan/reset password; scaffold juga mendaftarkan route verifikasi email dan konfirmasi password. Portal ini belum mewajibkan verifikasi email untuk mengakses fitur.
+
+Setelah Breeze memvalidasi kredensial, session ID dirotasi sebelum pengguna diarahkan ke dashboard:
+
+```php
+// app/Http/Controllers/Auth/AuthenticatedSessionController.php, baris 25–31
+public function store(LoginRequest $request): RedirectResponse
+{
+    $request->authenticate();
+    $request->session()->regenerate();
+
+    return redirect()->intended(route('dashboard', absolute: false));
+}
+```
+
+Saat logout, session lama dan token CSRF juga diperbarui:
+
+```php
+// app/Http/Controllers/Auth/AuthenticatedSessionController.php, baris 37–47
+Auth::guard('web')->logout();
+$request->session()->invalidate();
+$request->session()->regenerateToken();
+
+return redirect('/');
+```
+
+Scaffold halaman portal Breeze menggunakan layout portal terpisah, sementara halaman sandbox publik tetap menggunakan layout `layouts.app`. Ini menjaga tampilan lama sambil memberi dashboard autentikasi navigasi akun responsif. Lihat [AppLayout.php, baris 15](./app/View/Components/AppLayout.php#L15), [portal.blade.php, baris 9](./resources/views/layouts/portal.blade.php#L9), dan [layouts/app.blade.php, baris 309](./resources/views/layouts/app.blade.php#L309).
+
+### 2. Role, migration, dan registrasi mahasiswa
+
+Role ditambahkan ke tabel `users` sebagai kolom string dengan default `mahasiswa`. Akun yang dibuat melalui register memperoleh role itu di server; pengguna tidak dapat mengirim role dosen/asdos melalui form untuk meningkatkan hak akses.
+
+- [2026_10_11_000001_add_role_to_users_table.php, baris 15](./database/migrations/2026_10_11_000001_add_role_to_users_table.php#L15): migration penambahan kolom role.
+- [User.php, baris 14](./app/Models/User.php#L14): atribut model serta proteksi mass assignment.
+- [RegisteredUserController.php, baris 31](./app/Http/Controllers/Auth/RegisteredUserController.php#L31): validasi input register.
+
+```php
+// app/Http/Controllers/Auth/RegisteredUserController.php, baris 38–46
+$user = User::create([
+    'name' => $request->name,
+    'email' => $request->email,
+    'password' => Hash::make($request->password),
+    'role' => 'mahasiswa',
+]);
+```
+
+Factory juga menetapkan role mahasiswa sebagai nilai awal untuk pengguna uji: [UserFactory.php, baris 30](./database/factories/UserFactory.php#L30).
+
+### 3. Akun demo dan seeder
+
+`DemoUserSeeder` menyiapkan empat akun presentasi. Seeder memakai `updateOrCreate`, sehingga dapat dijalankan lagi tanpa menduplikasi akun berdasarkan email yang sama. `DatabaseSeeder` memanggil seeder demo.
+
+- [DemoUserSeeder.php, baris 8](./database/seeders/DemoUserSeeder.php#L8): daftar nama, email, dan role.
+- [DemoUserSeeder.php, baris 18](./database/seeders/DemoUserSeeder.php#L18): penyimpanan akun dan password demo.
+- [DatabaseSeeder.php, baris 13](./database/seeders/DatabaseSeeder.php#L13): pemanggilan seeder demo.
+
+| Nama | Email untuk login | Role |
+| --- | --- | --- |
+| Andi | `andi@example.com` | `mahasiswa` |
+| Budi | `budi@example.com` | `mahasiswa` |
+| Asdos | `asdos@example.com` | `asdos` |
+| Dosen | `dosen@example.com` | `dosen` |
+
+Password bersama akun demo adalah `password`. Kredensial ini hanya untuk pengembangan/presentasi lokal, bukan untuk produksi. Form login Breeze menerima email, jadi gunakan email pada tabel di atas, bukan nama tampilan.
+
+### 4. Custom Middleware `cek.peran` dan route admin
+
+Middleware `CheckRole` memeriksa apakah role pengguna yang sedang login termasuk dalam daftar role yang diizinkan. Role di luar daftar ditolak dengan HTTP 403.
+
+- [CheckRole.php, baris 11](./app/Http/Middleware/CheckRole.php#L11): implementasi pemeriksaan role.
+- [bootstrap/app.php, baris 16](./bootstrap/app.php#L16): alias middleware `cek.peran`.
+- [routes/web.php, baris 63](./routes/web.php#L63): grup route admin untuk dosen/asdos.
+- [AcademicPortalTest.php, baris 61](./tests/Feature/AcademicPortalTest.php#L61): pengujian akses berdasarkan role.
+
+```php
+// bootstrap/app.php, baris 16–18
+$middleware->alias([
+    'cek.peran' => CheckRole::class,
+]);
+
+// routes/web.php, baris 63–69
+Route::prefix('admin')
+    ->name('admin.')
+    ->middleware(['auth', 'cek.peran:dosen,asdos'])
+    ->group(function () {
+        Route::get('/', AdminController::class)->name('index');
+        Route::get('/grades', [GradeController::class, 'index'])->name('grades.index');
+        Route::patch('/grades/{proposal}', [GradeController::class, 'update'])->name('grades.update');
+    });
+```
+
+Middleware `auth` mengarahkan guest ke login. Setelah login, mahasiswa tetap ditolak dari route admin, sedangkan dosen dan asdos boleh masuk. Route proposal mahasiswa secara terpisah memakai `auth` dan `cek.peran:mahasiswa` di [routes/web.php, baris 52](./routes/web.php#L52).
+
+### 5. Global Gate `kelola-nilai`
+
+Gate global didefinisikan di `AppServiceProvider`: hanya role `dosen` dan `asdos` yang boleh mengelola nilai. Controller memeriksa Gate di server sebelum menampilkan form atau menyimpan nilai.
+
+- [AppServiceProvider.php, baris 24](./app/Providers/AppServiceProvider.php#L24): definisi Gate.
+- [GradeController.php, baris 15](./app/Http/Controllers/GradeController.php#L15): proteksi halaman nilai.
+- [GradeController.php, baris 24](./app/Http/Controllers/GradeController.php#L24): proteksi aksi menyimpan nilai.
+- [grades.blade.php, baris 17](./resources/views/admin/grades.blade.php#L17): form dibungkus directive `@can`.
+
+```php
+// app/Providers/AppServiceProvider.php, baris 24
+Gate::define('kelola-nilai', fn (User $user): bool => in_array($user->role, ['dosen', 'asdos'], true));
+
+// app/Http/Controllers/GradeController.php, baris 24–32
+Gate::authorize('kelola-nilai');
+$validated = $request->validate([
+    'grade' => ['required', 'numeric', 'between:0,100'],
+]);
+$proposal->update($validated);
+```
+
+`@can` menyembunyikan aksi dari UI yang tidak berhak; pemeriksaan `Gate::authorize()` di server tetap menjadi kontrol akses yang utama.
+
+### 6. Proposal, relasi pemilik, dan `ProposalPolicy`
+
+Proposal menyimpan pemilik, judul, deskripsi opsional, dan nilai opsional. Relasi `User::proposals()` memungkinkan dashboard mengambil proposal milik akun yang sedang login. Saat membuat proposal, controller menyimpannya melalui relasi pengguna tersebut, bukan mempercayai `user_id` dari form.
+
+- [2026_10_11_000002_create_proposals_table.php, baris 12](./database/migrations/2026_10_11_000002_create_proposals_table.php#L12): skema dan foreign key proposal.
+- [User.php, baris 34](./app/Models/User.php#L34): relasi `hasMany`.
+- [ProposalController.php, baris 18](./app/Http/Controllers/ProposalController.php#L18): validasi dan penyimpanan oleh mahasiswa aktif.
+- [DashboardController.php, baris 10](./app/Http/Controllers/DashboardController.php#L10): query proposal milik user aktif.
+- [ProposalPolicy.php, baris 10](./app/Policies/ProposalPolicy.php#L10): aturan Policy pengubahan judul.
+- [ProposalController.php, baris 30](./app/Http/Controllers/ProposalController.php#L30): otorisasi server sebelum edit/update.
+- [AcademicPortalTest.php, baris 78](./tests/Feature/AcademicPortalTest.php#L78): uji kepemilikan dan penolakan mahasiswa lain.
+
+Hanya mahasiswa pemilik proposal yang dapat mengubah judul:
+
+```php
+// app/Policies/ProposalPolicy.php, baris 10–13
+public function update(User $user, Proposal $proposal): bool
+{
+    return $user->role === 'mahasiswa' && $user->id === $proposal->user_id;
+}
+```
+
+Dashboard saat ini merupakan tempat mahasiswa melihat proposal sendiri dan pesan keadaan kosong. Tombol edit di UI juga dilindungi `@can('update', $proposal)`:
+
+```blade
+{{-- resources/views/dashboard.blade.php, baris 36–42 --}}
+@can('update', $proposal)
+    <a class="mt-3 inline-block text-sm text-indigo-700 underline" href="{{ route('proposals.edit', $proposal) }}">
+        Ubah judul
+    </a>
+@endcan
+```
+
+### 7. Dashboard, peninjauan proposal, dan pengisian nilai
+
+Dashboard menampilkan proposal milik mahasiswa yang login. Dosen/asdos dapat membuka tinjauan seluruh proposal dan halaman input nilai. Nilai divalidasi sebagai angka dari 0 sampai 100.
+
+- [DashboardController.php, baris 10](./app/Http/Controllers/DashboardController.php#L10): mengambil data dashboard dari relasi user aktif.
+- [dashboard.blade.php, baris 16](./resources/views/dashboard.blade.php#L16): tampilan dan daftar proposal mahasiswa.
+- [AdminController.php, baris 10](./app/Http/Controllers/AdminController.php#L10): daftar proposal untuk admin.
+- [GradeController.php, baris 22](./app/Http/Controllers/GradeController.php#L22): validasi dan update nilai.
+- [navigation.blade.php, baris 18](./resources/views/layouts/navigation.blade.php#L18): navigasi portal berdasarkan role/Gate.
+- [grades.blade.php, baris 17](./resources/views/admin/grades.blade.php#L17): input nilai yang dibatasi `@can`.
+
+Route/controller melindungi aksi pada server. Navigasi dan `@can` menyesuaikan kontrol yang terlihat sesuai izin pengguna.
+
+### 8. Profile pengguna
+
+Breeze menambahkan halaman pengelolaan profil terautentikasi untuk memperbarui nama/email, memperbarui password, dan menghapus akun. Email divalidasi unik; jika email berubah, status verifikasinya direset. Penghapusan akun meminta password saat ini dan mengakhiri session.
+
+- [routes/web.php, baris 72](./routes/web.php#L72): route profile berada di dalam middleware `auth`.
+- [ProfileController.php, baris 17](./app/Http/Controllers/ProfileController.php#L17): menampilkan profil.
+- [ProfileUpdateRequest.php, baris 17](./app/Http/Requests/ProfileUpdateRequest.php#L17): validasi nama dan email unik.
+- [ProfileController.php, baris 27](./app/Http/Controllers/ProfileController.php#L27): simpan pembaruan profil.
+- [ProfileController.php, baris 43](./app/Http/Controllers/ProfileController.php#L43): hapus akun dan invalidasi session.
+- [edit.blade.php, baris 1](./resources/views/profile/edit.blade.php#L1): halaman dengan form profil, password, dan penghapusan akun.
+
+Role tidak dapat diubah dari form profil.
+
+### 9. Navigasi dan Local Login Demo
+
+Navigasi portal menampilkan tautan yang sesuai dengan role: mahasiswa mendapat akses membuat proposal, dosen/asdos mendapat tautan tinjau proposal, dan `@can` mengatur visibilitas input nilai. Dropdown akun menyediakan profile dan logout.
+
+**Local Login Demo Minggu 4 bukan autentikasi.** Kartu Guest/Andi/Budi hanya mengarahkan ke homepage dengan query parameter `user`; kartu tersebut tidak membuat akun, session, atau hak akses role. Jika sesi Breeze sudah aktif, homepage menampilkan nama akun yang login alih-alih nilai query.
+
+- [navigation.blade.php, baris 18](./resources/views/layouts/navigation.blade.php#L18): tautan portal berdasar role dan Gate.
+- [AuthenticatedSessionController.php, baris 37](./app/Http/Controllers/Auth/AuthenticatedSessionController.php#L37): proses logout.
+- [local-login.blade.php, baris 111](./resources/views/local-login.blade.php#L111): kartu simulasi query.
+- [PageController.php, baris 9](./app/Http/Controllers/PageController.php#L9): nama akun terautentikasi mengesampingkan query.
+- [AcademicPortalTest.php, baris 125](./tests/Feature/AcademicPortalTest.php#L125): pengujian bahwa demo query tidak mengautentikasi.
+
+### 10. Setup dan menjalankan demo
+
+Setelah PHP, Composer, Node.js, dan npm tersedia, siapkan aplikasi lokal:
+
+```powershell
+composer install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+php artisan key:generate
+npm install
+php artisan migrate --seed
+npm run build
+```
+
+`php artisan migrate --seed` membuat skema dan akun demo di database yang dikonfigurasi oleh `.env`. Gunakan email dan password dari bagian [Akun demo dan seeder](#3-akun-demo-dan-seeder). Untuk menjalankan layanan development, gunakan `composer run dev`.
+
+> Jangan gunakan password demo `password` di server publik. Pastikan `.env` tidak dimasukkan ke Git.
+
+Tantangan opsional—throttle kustom tiga proposal per menit dan bypass auto-login khusus environment local—belum diimplementasikan. Local Login Demo query-parameter bukan bypass autentikasi.
+
+### 11. Pengujian
+
+Pengujian fitur tugas berada di [AcademicPortalTest.php, baris 1](./tests/Feature/AcademicPortalTest.php#L1). Pengujian mencakup role default saat register, data seeder dan login, proteksi route admin, kepemilikan proposal, Gate untuk nilai, serta pembedaan Local Login Demo dari autentikasi Breeze.
+
+```bash
+php artisan test
+npm run build
+```
+
 ## Tugas 4: Required
 
 ### Master Layout
@@ -191,6 +422,8 @@ Fitur ini hanya diimplementasikan di Beranda `/` dan Project Idea `/dashboard/pr
 Parameter `user` pada URL menentukan nama yang disapa di beranda. Nama yang dikenal ditampilkan sebagai nama pengguna; jika parameter tidak cocok, aplikasi menyapa sebagai `Guest`. Komponen `<x-welcome-toast>` menampilkan notifikasi yang dapat ditutup dan menghilang otomatis.
 
 Contoh URL: `/?user=Andi`
+
+Parameter ini hanya simulasi tampilan untuk pengunjung yang belum login. Jika sesi Breeze aktif, nama akun yang sedang login akan ditampilkan dan mengesampingkan nilai query.
 
 ```php
 // app/Http/Controllers/PageController.php at line: 10

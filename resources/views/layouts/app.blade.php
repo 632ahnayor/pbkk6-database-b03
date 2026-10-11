@@ -114,15 +114,23 @@
             box-shadow: 0 8px 24px rgb(2 56 128 / 18%);
         }
 
-        .login-menu-options a {
+        .login-menu-options a,
+        .login-menu-options button {
             display: block;
+            width: 100%;
             padding: 0.6rem 0.75rem;
+            border: 0;
             border-radius: 5px;
+            background: transparent;
             color: #023880;
+            font: inherit;
+            text-align: left;
             text-decoration: none;
+            cursor: pointer;
         }
 
-        .login-menu-options a:hover {
+        .login-menu-options a:hover,
+        .login-menu-options button:hover {
             background: #eff6ff;
         }
 
@@ -299,11 +307,20 @@
         <div class="navbar-start">
             <a class="navbar-brand" href="{{ route('home') }}">PBKK</a>
             <details class="login-menu">
-                <summary>Login</summary>
+                <summary>@auth {{ Auth::user()->name }} @else Account @endauth</summary>
                 <div class="login-menu-options">
-                    <a href="{{ route('home') }}">Guest</a>
-                    <a href="{{ route('home', ['user' => 'Andi']) }}">Andi</a>
-                    <a href="{{ route('home', ['user' => 'Budi']) }}">Budi</a>
+                    @guest
+                        <a href="{{ route('login') }}">Login</a>
+                        <a href="{{ route('register') }}">Register</a>
+                        <a href="{{ route('local-login') }}">Local Login Demo</a>
+                    @else
+                        <a href="{{ route('dashboard') }}">Dashboard</a>
+                        <a href="{{ route('profile.edit') }}">Profile</a>
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit">Log out</button>
+                        </form>
+                    @endguest
                 </div>
             </details>
         </div>
@@ -337,7 +354,12 @@
             <details class="nav-menu">
                 <summary>Minggu 5</summary>
                 <div class="nav-menu-options">
-                    
+                    @auth
+                        <a href="{{ route('dashboard') }}">Portal Akademik</a>
+                    @else
+                        <a href="{{ route('login') }}">Login Portal</a>
+                        <a href="{{ route('register') }}">Register</a>
+                    @endauth
                 </div>
             </details>
             
