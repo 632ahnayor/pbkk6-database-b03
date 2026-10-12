@@ -1,7 +1,11 @@
 # PBKK Evolution
 
-Nama: Royan Habibi Alfatih<br>
-NRP: 5025241115
+Anggota:<br>
+Ja'far Balyan Alkarim - 50252241040<br>
+Hanif Aqil Janardana - 5025241111<br>
+Dafa Kumara Sahasika - 5025241112<br>
+Royan Habibi Alfatih - 5025241115<br>
+
 
 
 ## Tugas 6: Database/Migrations
