@@ -4,6 +4,118 @@ Nama: Royan Habibi Alfatih<br>
 NRP: 5025241115
 
 
+## Tugas 6: Database/Migrations
+
+Tugas Minggu 6 memindahkan data project Agentic AI dari data statis ke database relasional. Tabel `users` bawaan Laravel menyimpan akun, sedangkan tabel `projects` menyimpan ide project dan foreign key pemiliknya. Implementasi tugas utama juga mencakup relasi Eloquent, perlindungan mass assignment pada model, dan seeder data contoh.
+
+> Contoh kode berikut merujuk pada implementasi proyek. Tautan di setiap bagian membuka file sumber pada baris terkait.
+
+### 1. Skema database dan migration
+
+Migration bawaan Laravel membuat tabel `users`, termasuk kolom `name`, `email`, dan `password`; email diberi constraint unik. Migration `projects` membuat kolom judul, deskripsi opsional, tema agent dengan nilai default `Ollama`, API key opsional, dan foreign key `user_id` ke `users.id`. `cascadeOnDelete()` memastikan project milik user ikut dihapus ketika user tersebut dihapus.
+
+- [0001_01_01_000000_create_users_table.php, baris 14](./database/migrations/0001_01_01_000000_create_users_table.php#L14): tabel akun dan kolom kredensial.
+- [0001_01_01_000000_create_users_table.php, baris 17](./database/migrations/0001_01_01_000000_create_users_table.php#L17): constraint email unik.
+- [2026_10_11_182002_create_projects_table.php, baris 18](./database/migrations/2026_10_11_182002_create_projects_table.php#L18): definisi tabel project.
+- [2026_10_11_182002_create_projects_table.php, baris 21](./database/migrations/2026_10_11_182002_create_projects_table.php#L21): deskripsi nullable.
+- [2026_10_11_182002_create_projects_table.php, baris 22](./database/migrations/2026_10_11_182002_create_projects_table.php#L22): tema agent default `Ollama`.
+- [2026_10_11_182002_create_projects_table.php, baris 24](./database/migrations/2026_10_11_182002_create_projects_table.php#L24): foreign key pemilik dan cascade delete.
+
+```php
+// database/migrations/2026_10_11_182002_create_projects_table.php, baris 18–25
+Schema::create('projects', function (Blueprint $table) {
+    $table->id();
+    $table->string('judul');
+    $table->text('deskripsi')->nullable();
+    $table->string('tema_agent')->default('Ollama');
+    $table->text('api_key_secure')->nullable();
+    $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+    $table->timestamps();
+});
+```
+
+### 2. Model Eloquent, relasi, dan mass assignment
+
+Relasi yang digunakan adalah **satu user memiliki banyak project** (`hasMany`), dan **setiap project dimiliki satu user** (`belongsTo`). Model `Project` memakai atribut `#[Fillable(...)]` untuk mengizinkan pengisian massal hanya pada atribut project yang tercantum. `user_id` tidak diambil dari data form; project dibuat melalui relasi user agar foreign key ditetapkan berdasarkan pemilik yang dipilih aplikasi.
+
+- [User.php, baris 39](./app/Models/User.php#L39): relasi `projects()` bertipe `HasMany`.
+- [Project.php, baris 9](./app/Models/Project.php#L9): whitelist atribut yang dapat diisi massal.
+- [Project.php, baris 12](./app/Models/Project.php#L12): relasi `user()` bertipe `BelongsTo`.
+
+```php
+// app/Models/User.php, baris 39–42
+public function projects(): HasMany
+{
+    return $this->hasMany(Project::class);
+}
+
+// app/Models/Project.php, baris 9–14
+#[Fillable(['judul', 'deskripsi', 'tema_agent', 'api_key_secure'])]
+class Project extends Model
+{
+    public function user(): BelongsTo {
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+### 3. Seeder data contoh
+
+`DatabaseSeeder` membuat user mahasiswa contoh bernama Wira, lalu membuat project `Asisten Akademik` melalui relasi user. Eloquent mengisi `user_id` project tersebut secara otomatis. Seeder dasar ini menyiapkan satu user dan satu project; factory untuk data acak dan challenge 15 user belum termasuk bagian ini.
+
+- [DatabaseSeeder.php, baris 14](./database/seeders/DatabaseSeeder.php#L14): method seeding.
+- [DatabaseSeeder.php, baris 17](./database/seeders/DatabaseSeeder.php#L17): membuat user contoh.
+- [DatabaseSeeder.php, baris 23](./database/seeders/DatabaseSeeder.php#L23): membuat project melalui relasi pemilik.
+
+```php
+// database/seeders/DatabaseSeeder.php, baris 17–29
+$user = User::factory()->create([
+    'name' => 'Wira Mahasiswa',
+    'email' => 'wira@student.its.ac.id',
+    'role' => 'mahasiswa',
+]);
+
+$user->projects()->create([
+    'judul' => 'Asisten Akademik',
+    'deskripsi' => 'Ide proyek agentic ai untuk membantu kegiatan akademik',
+    'tema_agent' => 'Ollama',
+    'api_key_secure' => null,
+]);
+```
+
+Seeder ini menggunakan email yang tetap dan `create()`, sehingga jalankan pada database yang belum memiliki `wira@student.its.ac.id`. Menjalankannya ulang setelah akun tersebut dibuat dapat gagal karena constraint email unik.
+
+### 4. Menjalankan dan memverifikasi tugas utama
+
+Setelah konfigurasi database lokal siap, jalankan migration dan seeder:
+
+```powershell
+php artisan migrate
+php artisan db:seed
+php artisan migrate:status
+php artisan db:table users
+php artisan db:table projects
+```
+
+Perintah `migrate:status` memperlihatkan migration yang sudah dijalankan; `db:table` menampilkan kolom, index, dan foreign key. Untuk menampilkan bukti relasi serta data hasil seeder, buka Tinker:
+
+```powershell
+php artisan tinker
+```
+
+Lalu jalankan:
+
+```php
+$user = \App\Models\User::where('email', 'wira@student.its.ac.id')->first();
+$user?->only(['id', 'name', 'email', 'role']);
+$user?->projects()->get(['id', 'judul', 'tema_agent', 'user_id']);
+
+$project = $user?->projects()->where('judul', 'Asisten Akademik')->first();
+$project?->user?->email;
+```
+
+Hasil yang diharapkan: user Wira ditemukan, project `Asisten Akademik` memakai tema `Ollama`, `user_id` project sama dengan ID user, dan relasi balik project menunjukkan email `wira@student.its.ac.id`.
+
 ## Tugas 5: Secure Academic Portal
 
 Tugas Minggu 5 mengembangkan sandbox menjadi portal akademik dengan autentikasi Breeze dan otorisasi berdasarkan role. Fitur wajib yang diterapkan mencakup register/login, migration role, middleware khusus untuk route admin, Gate pengelolaan nilai, Policy untuk kepemilikan proposal, serta proteksi aksi pada Blade. Fitur pendukungnya meliputi dashboard, profil akun, peninjauan proposal, dan pengisian nilai.
