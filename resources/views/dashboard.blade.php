@@ -13,6 +13,21 @@
                 </div>
             @endif
 
+            <section class="mb-6 rounded-lg bg-white p-6 shadow-sm">
+                <h3 class="text-lg font-medium text-gray-900">Portofolio Project Agentic AI</h3>
+                @forelse ($projects as $project)
+                    <article class="mt-4 rounded-md border border-gray-200 p-4">
+                        <h4 class="font-semibold text-gray-900">{{ $project->judul }}</h4>
+                        @if ($project->deskripsi)
+                            <p class="mt-2 text-sm text-gray-600">{{ $project->deskripsi }}</p>
+                        @endif
+                        <p class="mt-2 text-sm text-gray-600">Tema agent: {{ $project->tema_agent }}</p>
+                    </article>
+                @empty
+                    <p class="mt-4 text-sm text-gray-600">Belum ada project dalam portofolio Anda.</p>
+                @endforelse
+            </section>
+
             @if (Auth::user()->role === 'mahasiswa')
                 <section class="mb-6 rounded-lg bg-white p-6 shadow-sm">
                     <div class="flex flex-wrap items-center justify-between gap-4">

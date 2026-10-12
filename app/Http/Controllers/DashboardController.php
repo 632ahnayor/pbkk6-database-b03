@@ -11,6 +11,7 @@ class DashboardController extends Controller
     {
         return view('dashboard', [
             'proposals' => $request->user()->proposals()->latest()->get(),
+            'projects' => $request->user()->projects()->latest()->get(),
         ]);
     }
 }

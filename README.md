@@ -63,33 +63,40 @@ class Project extends Model
 }
 ```
 
-### 3. Seeder data contoh
+### 3. Factory dan seeder data
 
-`DatabaseSeeder` membuat user mahasiswa contoh bernama Wira, lalu membuat project `Asisten Akademik` melalui relasi user. Eloquent mengisi `user_id` project tersebut secara otomatis. Seeder dasar ini menyiapkan satu user dan satu project; factory untuk data acak dan challenge 15 user belum termasuk bagian ini.
+`ProjectFactory` memakai Faker untuk membuat judul, deskripsi, dan tema agent yang bervariasi. API key dummy bernilai `null`, sehingga seeding tidak memasukkan rahasia palsu ke database. Factory dipakai oleh `DatabaseSeeder` untuk menyiapkan 15 mahasiswa dengan dua project masing-masing.
 
-- [DatabaseSeeder.php, baris 14](./database/seeders/DatabaseSeeder.php#L14): method seeding.
-- [DatabaseSeeder.php, baris 17](./database/seeders/DatabaseSeeder.php#L17): membuat user contoh.
-- [DatabaseSeeder.php, baris 23](./database/seeders/DatabaseSeeder.php#L23): membuat project melalui relasi pemilik.
+- [ProjectFactory.php, baris 11](./database/factories/ProjectFactory.php#L11): model yang digunakan factory.
+- [ProjectFactory.php, baris 20](./database/factories/ProjectFactory.php#L20): atribut dummy yang dihasilkan Faker.
+- [DatabaseSeeder.php, baris 16](./database/seeders/DatabaseSeeder.php#L16): pemanggilan seeder akun demo Minggu 5.
+- [DatabaseSeeder.php, baris 18](./database/seeders/DatabaseSeeder.php#L18): akun mahasiswa Wira dan project contoh.
+- [DatabaseSeeder.php, baris 36](./database/seeders/DatabaseSeeder.php#L36): loop 15 mahasiswa.
+- [DatabaseSeeder.php, baris 50](./database/seeders/DatabaseSeeder.php#L50): membuat project factory melalui relasi mahasiswa.
+- [DatabaseSeeder.php, baris 55](./database/seeders/DatabaseSeeder.php#L55): akun dosen demo.
+- [DatabaseSeeder.php, baris 76](./database/seeders/DatabaseSeeder.php#L76): project portofolio akun dosen.
 
 ```php
-// database/seeders/DatabaseSeeder.php, baris 17–29
-$user = User::factory()->create([
-    'name' => 'Wira Mahasiswa',
-    'email' => 'wira@student.its.ac.id',
-    'role' => 'mahasiswa',
-]);
+// database/seeders/DatabaseSeeder.php
+$student = User::firstOrCreate(
+    ['email' => sprintf('week6.mahasiswa.%02d@student.its.ac.id', $number)],
+    [
+        'name' => fake()->name(),
+        'role' => 'mahasiswa',
+        'password' => 'password',
+    ]
+);
 
-$user->projects()->create([
-    'judul' => 'Asisten Akademik',
-    'deskripsi' => 'Ide proyek agentic ai untuk membantu kegiatan akademik',
-    'tema_agent' => 'Ollama',
-    'api_key_secure' => null,
-]);
+$student->projects()->saveMany(
+    Project::factory()->count($projectsToCreate)->make()
+);
 ```
 
-Seeder ini menggunakan email yang tetap dan `create()`, sehingga jalankan pada database yang belum memiliki `wira@student.its.ac.id`. Menjalankannya ulang setelah akun tersebut dibuat dapat gagal karena constraint email unik.
+Nama mahasiswa dan isi project dibuat Faker. Email mahasiswa memakai nomor yang tetap agar seeder dapat dijalankan ulang tanpa menambah duplikat; bila seeder dijalankan kembali, seeder hanya membuat jumlah project yang masih kurang dari dua. Data contoh Wira dari tugas utama tetap disediakan.
 
-### 4. Menjalankan dan memverifikasi tugas utama
+`DatabaseSeeder` juga memanggil `DemoUserSeeder` agar empat akun demo Minggu 5 tetap tersedia. Seeder membuat akun demo tambahan `dosenpbkk@its.ac.id` dengan role `dosen` dan dua project portofolio siap presentasi. Password lokal akun demo adalah `password`.
+
+### 4. Menjalankan dan memverifikasi database
 
 Setelah konfigurasi database lokal siap, jalankan migration dan seeder:
 
@@ -101,7 +108,9 @@ php artisan db:table users
 php artisan db:table projects
 ```
 
-Perintah `migrate:status` memperlihatkan migration yang sudah dijalankan; `db:table` menampilkan kolom, index, dan foreign key. Untuk menampilkan bukti relasi serta data hasil seeder, buka Tinker:
+Perintah `migrate:status` memperlihatkan migration yang sudah dijalankan; `db:table` menampilkan kolom, index, dan foreign key. Seeder aman dijalankan lebih dari sekali: user ditentukan berdasarkan email, project sampel berdasarkan judul dan pemilik, dan setiap mahasiswa challenge dilengkapi hingga memiliki dua project.
+
+Untuk memverifikasi jumlah user mahasiswa challenge beserta jumlah project per user, buka Tinker:
 
 ```powershell
 php artisan tinker
@@ -110,15 +119,42 @@ php artisan tinker
 Lalu jalankan:
 
 ```php
-$user = \App\Models\User::where('email', 'wira@student.its.ac.id')->first();
-$user?->only(['id', 'name', 'email', 'role']);
-$user?->projects()->get(['id', 'judul', 'tema_agent', 'user_id']);
+$students = \App\Models\User::where('email', 'like', 'week6.mahasiswa.%@student.its.ac.id')->orderBy('email')->get();
+$students->count();
+$students->map(fn ($student) => [$student->email, $student->projects()->count()]);
 
-$project = $user?->projects()->where('judul', 'Asisten Akademik')->first();
-$project?->user?->email;
+$lecturer = \App\Models\User::where('email', 'dosenpbkk@its.ac.id')->first();
+$lecturer?->projects()->get(['judul', 'tema_agent', 'user_id']);
 ```
 
-Hasil yang diharapkan: user Wira ditemukan, project `Asisten Akademik` memakai tema `Ollama`, `user_id` project sama dengan ID user, dan relasi balik project menunjukkan email `wira@student.its.ac.id`.
+Hasil yang diharapkan: 15 mahasiswa challenge ditemukan dan masing-masing memiliki dua project; akun demo dosen memiliki dua project portofolio. Keluar dari Tinker dengan `exit`.
+
+### 5. Menampilkan project milik user aktif di dashboard
+
+Dashboard mengambil daftar project melalui relasi milik user yang sedang login, mengurutkannya dari yang terbaru, lalu menampilkan judul, deskripsi, dan tema agent. Karena query berawal dari `$request->user()->projects()`, hasilnya hanya berisi project milik akun aktif.
+
+- [DashboardController.php, baris 14](./app/Http/Controllers/DashboardController.php#L14): query project terbaru melalui relasi user terautentikasi.
+- [dashboard.blade.php, baris 17](./resources/views/dashboard.blade.php#L17): daftar portofolio pada dashboard.
+- [WeekSixChallengeTest.php, baris 49](./tests/Feature/WeekSixChallengeTest.php#L49): uji bahwa project user lain tidak tampil.
+
+```php
+// app/Http/Controllers/DashboardController.php, baris 14
+'projects' => $request->user()->projects()->latest()->get(),
+```
+
+### 6. Uji challenge
+
+Feature test memastikan 15 mahasiswa memiliki masing-masing dua project, akun dosen demo memiliki portofolio, seeder dapat dijalankan ulang tanpa duplikasi, dan dashboard tidak membocorkan project milik akun lain.
+
+- [WeekSixChallengeTest.php, baris 10](./tests/Feature/WeekSixChallengeTest.php#L10): uji data seeder dan jumlah project.
+- [WeekSixChallengeTest.php, baris 37](./tests/Feature/WeekSixChallengeTest.php#L37): uji seeder berulang.
+- [WeekSixChallengeTest.php, baris 49](./tests/Feature/WeekSixChallengeTest.php#L49): uji pembatasan project berdasarkan user aktif.
+
+Jalankan test dengan:
+
+```powershell
+php artisan test tests\Feature\WeekSixChallengeTest.php
+```
 
 ## Tugas 5: Secure Academic Portal
 
